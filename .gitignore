@@ -1,0 +1,6 @@
+# Virtualenv (racine)
+.venv/
+env/
+
+# OS
+.DS_Store
