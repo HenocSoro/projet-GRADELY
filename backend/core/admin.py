@@ -1,15 +1,5 @@
 from django.contrib import admin
-from .models import (
-    ActivityLog,
-    Comment,
-    Deliverable,
-    Milestone,
-    Project,
-    Review,
-    Sprint,
-    Submission,
-    Task,
-)
+from .models import ActivityLog, Comment, Project, Task
 
 
 @admin.register(Project)
@@ -37,36 +27,3 @@ class ActivityLogAdmin(admin.ModelAdmin):
 class CommentAdmin(admin.ModelAdmin):
     list_display = ("id", "project", "author", "created_at")
     search_fields = ("content", "project__title")
-
-
-@admin.register(Milestone)
-class MilestoneAdmin(admin.ModelAdmin):
-    list_display = ("id", "project", "title", "status", "due_date", "order")
-    list_filter = ("status",)
-    search_fields = ("title", "project__title")
-
-
-@admin.register(Sprint)
-class SprintAdmin(admin.ModelAdmin):
-    list_display = ("id", "project", "title", "start_date", "end_date", "status")
-    list_filter = ("status",)
-    search_fields = ("title", "project__title")
-
-
-@admin.register(Deliverable)
-class DeliverableAdmin(admin.ModelAdmin):
-    list_display = ("id", "project", "title", "due_date")
-    search_fields = ("title", "project__title")
-
-
-@admin.register(Submission)
-class SubmissionAdmin(admin.ModelAdmin):
-    list_display = ("id", "deliverable", "submitted_by", "status", "submitted_at")
-    list_filter = ("status",)
-    search_fields = ("deliverable__title",)
-
-
-@admin.register(Review)
-class ReviewAdmin(admin.ModelAdmin):
-    list_display = ("id", "submission", "reviewer", "status", "reviewed_at")
-    list_filter = ("status",)

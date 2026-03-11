@@ -13,39 +13,16 @@ from django.db.models import Q
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
-from .models import (
-    ActivityLog,
-    Comment,
-    Deliverable,
-    Milestone,
-    Project,
-    Review,
-    Sprint,
-    Submission,
-    SupervisionRequest,
-    Task,
-)
+from .models import ActivityLog, Comment, Project, SupervisionRequest, Task
 from .services import log_activity
-from .permissions import (
-    IsProjectMember,
-    IsProjectOwnerOrSupervisor,
-    IsSupervisorForReview,
-)
+from .permissions import IsProjectMember, IsProjectOwnerOrSupervisor
 from .serializers import (
     ActivityLogSerializer,
     CommentSerializer,
-    DeliverableSerializer,
-    MilestoneSerializer,
     ProjectSerializer,
-    ReviewSerializer,
-    SprintSerializer,
-    SubmissionDetailSerializer,
-    SubmissionSerializer,
     SupervisionRequestSerializer,
     TaskSerializer,
 )
@@ -154,250 +131,6 @@ class ProjectCommentViewSet(viewsets.ModelViewSet):
         )
 
 
-class ProjectMilestoneViewSet(viewsets.ModelViewSet):
-    """
-    Jalons d'un projet.
-    GET, POST, PUT, PATCH, DELETE /api/projects/<project_pk>/milestones/
-    """
-
-    serializer_class = MilestoneSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        project_pk = self.kwargs.get("project_pk")
-        project = Project.objects.filter(pk=project_pk).first()
-        if not project:
-            return Milestone.objects.none()
-        user = self.request.user
-        if project.owner_id != user.id and project.supervisor_id != user.id:
-            return Milestone.objects.none()
-        return Milestone.objects.filter(project=project)
-
-    def perform_create(self, serializer):
-        project = Project.objects.get(pk=self.kwargs["project_pk"])
-        user = self.request.user
-        if project.owner_id != user.id and project.supervisor_id != user.id:
-            from rest_framework.exceptions import PermissionDenied
-
-            raise PermissionDenied("Accès refusé à ce projet.")
-        milestone = serializer.save(project=project)
-        log_activity(
-            project,
-            user,
-            ActivityLog.ActionType.MILESTONE_CREATED,
-            f"Jalon « {milestone.title} » créé",
-            {"milestone_id": milestone.id},
-        )
-
-    def perform_update(self, serializer):
-        milestone = serializer.save()
-        log_activity(
-            milestone.project,
-            self.request.user,
-            ActivityLog.ActionType.MILESTONE_UPDATED,
-            f"Jalon « {milestone.title} » modifié",
-            {"milestone_id": milestone.id},
-        )
-
-
-class ProjectSprintViewSet(viewsets.ModelViewSet):
-    """
-    Sprints d'un projet.
-    GET, POST, PUT, PATCH, DELETE /api/projects/<project_pk>/sprints/
-    """
-
-    serializer_class = SprintSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        project_pk = self.kwargs.get("project_pk")
-        project = Project.objects.filter(pk=project_pk).first()
-        if not project:
-            return Sprint.objects.none()
-        user = self.request.user
-        if project.owner_id != user.id and project.supervisor_id != user.id:
-            return Sprint.objects.none()
-        return Sprint.objects.filter(project=project)
-
-    def perform_create(self, serializer):
-        project = Project.objects.get(pk=self.kwargs["project_pk"])
-        user = self.request.user
-        if project.owner_id != user.id and project.supervisor_id != user.id:
-            from rest_framework.exceptions import PermissionDenied
-
-            raise PermissionDenied("Accès refusé à ce projet.")
-        sprint = serializer.save(project=project)
-        log_activity(
-            project,
-            user,
-            ActivityLog.ActionType.SPRINT_CREATED,
-            f"Sprint « {sprint.title} » créé",
-            {"sprint_id": sprint.id},
-        )
-
-    def perform_update(self, serializer):
-        sprint = serializer.save()
-        log_activity(
-            sprint.project,
-            self.request.user,
-            ActivityLog.ActionType.SPRINT_UPDATED,
-            f"Sprint « {sprint.title} » modifié",
-            {"sprint_id": sprint.id},
-        )
-
-
-class ProjectDeliverableViewSet(viewsets.ModelViewSet):
-    """
-    Livrables d'un projet.
-    GET, POST, PUT, PATCH, DELETE /api/projects/<project_pk>/deliverables/
-    """
-
-    serializer_class = DeliverableSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        project_pk = self.kwargs.get("project_pk")
-        project = Project.objects.filter(pk=project_pk).first()
-        if not project:
-            return Deliverable.objects.none()
-        user = self.request.user
-        if project.owner_id != user.id and project.supervisor_id != user.id:
-            return Deliverable.objects.none()
-        return Deliverable.objects.filter(project=project)
-
-    def perform_create(self, serializer):
-        project = Project.objects.get(pk=self.kwargs["project_pk"])
-        user = self.request.user
-        if project.owner_id != user.id and project.supervisor_id != user.id:
-            from rest_framework.exceptions import PermissionDenied
-
-            raise PermissionDenied("Accès refusé à ce projet.")
-        deliverable = serializer.save(project=project)
-        log_activity(
-            project,
-            user,
-            ActivityLog.ActionType.DELIVERABLE_CREATED,
-            f"Livrable « {deliverable.title} » créé",
-            {"deliverable_id": deliverable.id},
-        )
-
-
-class DeliverableSubmissionViewSet(viewsets.ModelViewSet):
-    """
-    Dépôts d'un livrable.
-    GET, POST /api/projects/.../deliverables/<deliverable_pk>/submissions/
-    Owner peut créer, owner et supervisor peuvent lire.
-    """
-
-    permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
-    http_method_names = ["get", "post", "head", "options", "patch", "put", "delete"]
-
-    def get_serializer_class(self):
-        if self.action == "retrieve":
-            return SubmissionDetailSerializer
-        return SubmissionSerializer
-
-    def get_queryset(self):
-        deliverable_pk = self.kwargs.get("deliverable_pk")
-        deliverable = Deliverable.objects.filter(pk=deliverable_pk).select_related("project").first()
-        if not deliverable:
-            return Submission.objects.none()
-        project = deliverable.project
-        user = self.request.user
-        if project.owner_id != user.id and project.supervisor_id != user.id:
-            return Submission.objects.none()
-        return Submission.objects.filter(deliverable=deliverable).select_related(
-            "submitted_by"
-        ).prefetch_related("review")
-
-    def perform_create(self, serializer):
-        deliverable = Deliverable.objects.select_related("project").get(
-            pk=self.kwargs["deliverable_pk"]
-        )
-        project = deliverable.project
-        user = self.request.user
-        if project.owner_id != user.id:
-            from rest_framework.exceptions import PermissionDenied
-
-            raise PermissionDenied("Seul l'owner peut soumettre un livrable.")
-        submission = serializer.save(deliverable=deliverable, submitted_by=user)
-        if submission.status == Submission.Status.SUBMITTED:
-            submission.submitted_at = timezone.now()
-            submission.save(update_fields=["submitted_at"])
-        log_activity(
-            project,
-            user,
-            ActivityLog.ActionType.SUBMISSION_CREATED,
-            f"Dépôt pour « {deliverable.title} »",
-            {"submission_id": submission.id},
-        )
-
-    def perform_update(self, serializer):
-        submission = serializer.save()
-        if submission.status == Submission.Status.SUBMITTED and not submission.submitted_at:
-            submission.submitted_at = timezone.now()
-            submission.save(update_fields=["submitted_at"])
-
-
-class SubmissionReviewView(APIView):
-    """
-    POST /api/submissions/<submission_pk>/review/
-    Créer ou mettre à jour la revue. Uniquement le superviseur.
-    """
-
-    permission_classes = [IsAuthenticated, IsSupervisorForReview]
-
-    def get_submission(self, pk):
-        submission = Submission.objects.select_related(
-            "deliverable__project"
-        ).filter(pk=pk).first()
-        if not submission:
-            from rest_framework.exceptions import NotFound
-
-            raise NotFound("Dépôt introuvable.")
-        return submission
-
-    def get(self, request, submission_pk):
-        submission = self.get_submission(submission_pk)
-        project = submission.deliverable.project
-        if project.owner_id != request.user.id and project.supervisor_id != request.user.id:
-            from rest_framework.exceptions import PermissionDenied
-
-            raise PermissionDenied("Accès refusé.")
-        if hasattr(submission, "review"):
-            serializer = ReviewSerializer(submission.review)
-            return Response(serializer.data)
-        return Response({}, status=404)
-
-    def post(self, request, submission_pk):
-        from rest_framework.exceptions import PermissionDenied
-
-        submission = self.get_submission(submission_pk)
-        self.check_object_permissions(request, submission)
-        project = submission.deliverable.project
-        if project.supervisor_id != request.user.id:
-            raise PermissionDenied("Seul le superviseur peut valider.")
-        serializer = ReviewSerializer(data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        review, created = Review.objects.update_or_create(
-            submission=submission,
-            defaults={
-                "reviewer": request.user,
-                "status": serializer.validated_data.get("status", Review.Status.PENDING),
-                "feedback": serializer.validated_data.get("feedback", ""),
-            },
-        )
-        log_activity(
-            project,
-            request.user,
-            ActivityLog.ActionType.REVIEW_SUBMITTED,
-            f"Revue envoyée pour « {submission.deliverable.title} » : {review.get_status_display()}",
-            {"submission_id": submission.id, "review_id": review.id},
-        )
-        return Response(ReviewSerializer(review).data)
-
-
 class TaskViewSet(viewsets.ModelViewSet):
     """
     ViewSet pour les tâches.
@@ -416,7 +149,7 @@ class TaskViewSet(viewsets.ModelViewSet):
             Task.objects.filter(
                 Q(project__owner=user) | Q(project__supervisor=user)
             )
-            .select_related("project", "sprint")
+            .select_related("project")
             .order_by("-updated_at")
         )
 

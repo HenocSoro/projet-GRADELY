@@ -1,11 +1,12 @@
 /**
  * Page détail d'un projet avec onglets :
  * Vue d'ensemble, Tâches, Commentaires, Activité
+ * (Aligné avec le rapport de progrès : pas de Planning ni Livrables)
  */
 
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ClipboardList, MessageSquare, Activity, Calendar, FileText } from "lucide-react";
+import { ArrowLeft, ClipboardList, MessageSquare, Activity } from "lucide-react";
 import api from "../api/axios.js";
 import { logout } from "../api/auth.js";
 import Card from "../components/Card.jsx";
@@ -13,17 +14,10 @@ import Badge from "../components/ui/Badge.jsx";
 import SectionTitle from "../components/ui/SectionTitle.jsx";
 import ActivityFeed from "../components/ActivityFeed.jsx";
 import CommentList from "../components/CommentList.jsx";
-import MilestoneList from "../components/MilestoneList.jsx";
-import SprintList from "../components/SprintList.jsx";
-import TimelineView from "../components/TimelineView.jsx";
-import DeliverableList from "../components/DeliverableList.jsx";
-import SectionHero from "../components/ui/SectionHero.jsx";
 import { lucaBravo } from "../assets/images/index.js";
 
 const TABS = [
   { id: "overview", label: "Vue d'ensemble", icon: ClipboardList },
-  { id: "planning", label: "Planning", icon: Calendar },
-  { id: "deliverables", label: "Livrables", icon: FileText },
   { id: "tasks", label: "Tâches", icon: ClipboardList },
   { id: "comments", label: "Commentaires", icon: MessageSquare },
   { id: "activity", label: "Activité", icon: Activity },
@@ -47,9 +41,6 @@ export default function ProjectDetailsPage() {
   const navigate = useNavigate();
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
-  const [milestones, setMilestones] = useState([]);
-  const [sprints, setSprints] = useState([]);
-  const [deliverables, setDeliverables] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [comments, setComments] = useState([]);
   const [activity, setActivity] = useState([]);
@@ -89,33 +80,6 @@ export default function ProjectDetailsPage() {
       setTasks(data.filter((t) => t.project === parseInt(id)));
     } catch {
       setTasks([]);
-    }
-  }
-
-  async function fetchMilestones() {
-    try {
-      const { data } = await api.get(`/api/projects/${id}/milestones/`);
-      setMilestones(data);
-    } catch {
-      setMilestones([]);
-    }
-  }
-
-  async function fetchSprints() {
-    try {
-      const { data } = await api.get(`/api/projects/${id}/sprints/`);
-      setSprints(data);
-    } catch {
-      setSprints([]);
-    }
-  }
-
-  async function fetchDeliverables() {
-    try {
-      const { data } = await api.get(`/api/projects/${id}/deliverables/`);
-      setDeliverables(data);
-    } catch {
-      setDeliverables([]);
     }
   }
 
@@ -161,9 +125,6 @@ export default function ProjectDetailsPage() {
     await Promise.all([
       fetchProject(),
       fetchTasks(),
-      fetchMilestones(),
-      fetchSprints(),
-      fetchDeliverables(),
       fetchCurrentUser(),
       fetchComments(),
       fetchActivity(),
@@ -179,55 +140,6 @@ export default function ProjectDetailsPage() {
   async function handleAddComment(content) {
     await api.post(`/api/projects/${id}/comments/`, { content });
     showSuccess("Commentaire ajouté.");
-  }
-
-  async function handleAddMilestone(data) {
-    await api.post(`/api/projects/${id}/milestones/`, data);
-  }
-
-  async function handleUpdateMilestone(milestoneId, data) {
-    await api.patch(`/api/projects/${id}/milestones/${milestoneId}/`, data);
-  }
-
-  async function handleDeleteMilestone(milestoneId) {
-    await api.delete(`/api/projects/${id}/milestones/${milestoneId}/`);
-    await fetchMilestones();
-    fetchActivity();
-    showSuccess("Jalon supprimé.");
-  }
-
-  async function handleAddSprint(data) {
-    await api.post(`/api/projects/${id}/sprints/`, data);
-  }
-
-  async function handleUpdateSprint(sprintId, data) {
-    await api.patch(`/api/projects/${id}/sprints/${sprintId}/`, data);
-  }
-
-  async function handleDeleteSprint(sprintId) {
-    await api.delete(`/api/projects/${id}/sprints/${sprintId}/`);
-    await fetchSprints();
-    fetchActivity();
-    showSuccess("Sprint supprimé.");
-  }
-
-  async function handleAddDeliverable(data) {
-    await api.post(`/api/projects/${id}/deliverables/`, data);
-    await fetchDeliverables();
-  }
-
-  async function handleUpdateDeliverable(deliverableId, data) {
-    await api.patch(`/api/projects/${id}/deliverables/${deliverableId}/`, data);
-    await fetchDeliverables();
-    fetchActivity();
-    showSuccess("Livrable mis à jour.");
-  }
-
-  async function handleDeleteDeliverable(deliverableId) {
-    await api.delete(`/api/projects/${id}/deliverables/${deliverableId}/`);
-    await fetchDeliverables();
-    fetchActivity();
-    showSuccess("Livrable supprimé.");
   }
 
   async function fetchStaffUsers() {
@@ -276,7 +188,8 @@ export default function ProjectDetailsPage() {
   }
 
   async function handleAddTask(data) {
-    await api.post("/api/tasks/", { ...data, project: parseInt(id, 10) });
+    const { sprint, ...rest } = data;
+    await api.post("/api/tasks/", { ...rest, project: parseInt(id, 10) });
     await fetchTasks();
     await fetchProject();
     showSuccess("Tâche ajoutée.");
@@ -491,67 +404,10 @@ export default function ProjectDetailsPage() {
           </div>
         )}
 
-        {activeTab === "planning" && (
-          <div className="space-y-8">
-            <div>
-              <SectionTitle className="mb-4">Timeline</SectionTitle>
-              <TimelineView milestones={milestones} sprints={sprints} />
-            </div>
-            <div className="grid md:grid-cols-2 gap-8">
-              <div>
-                <MilestoneList
-                  projectId={id}
-                  items={milestones}
-                  loading={false}
-                  onAdd={(d) => handleAddMilestone(d).then(() => showSuccess("Jalon ajouté."))}
-                  onUpdate={handleUpdateMilestone}
-                  onDelete={handleDeleteMilestone}
-                  onRefresh={() => {
-                    fetchMilestones();
-                    fetchActivity();
-                  }}
-                />
-              </div>
-              <div>
-                <SprintList
-                  projectId={id}
-                  items={sprints}
-                  loading={false}
-                  onAdd={(d) => handleAddSprint(d).then(() => showSuccess("Sprint ajouté."))}
-                  onUpdate={handleUpdateSprint}
-                  onDelete={handleDeleteSprint}
-                  onRefresh={() => {
-                    fetchSprints();
-                    fetchActivity();
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "deliverables" && (
-          <DeliverableList
-            projectId={id}
-            items={deliverables}
-            loading={false}
-            onAdd={(d) => handleAddDeliverable(d).then(() => showSuccess("Livrable ajouté."))}
-            onUpdate={handleUpdateDeliverable}
-            onDelete={handleDeleteDeliverable}
-            onRefresh={() => {
-              fetchDeliverables();
-              fetchActivity();
-            }}
-            isSupervisor={!!isSupervisor}
-            onReviewSuccess={() => showSuccess("Revue envoyée.")}
-          />
-        )}
-
         {activeTab === "tasks" && (
           <TaskListSection
             projectId={id}
             tasks={tasks}
-            sprints={sprints}
             onAdd={handleAddTask}
             onUpdateStatus={handleUpdateTaskStatus}
             onUpdateTask={handleUpdateTask}
@@ -844,7 +700,6 @@ function taskApiErrorMessage(err) {
 function TaskListSection({
   projectId,
   tasks,
-  sprints = [],
   onAdd,
   onUpdateStatus,
   onUpdateTask,
@@ -853,15 +708,13 @@ function TaskListSection({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [sprintId, setSprintId] = useState("");
+  const [priority, setPriority] = useState("3");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [updateError, setUpdateError] = useState("");
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editDueDate, setEditDueDate] = useState("");
-  const [editSprintId, setEditSprintId] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState("");
 
@@ -869,41 +722,23 @@ function TaskListSection({
     e.preventDefault();
     if (!title.trim()) return;
     setError("");
-    const sprint = sprintId ? sprints.find((s) => String(s.id) === sprintId) : null;
-    if (sprint && dueDate && dueDate > sprint.end_date) {
-      setError(
-        `La date d'échéance (${dueDate}) ne peut pas être après la date de fin du sprint « ${sprint.title} » (${sprint.end_date}).`
-      );
-      return;
-    }
     setSubmitting(true);
     try {
       await onAdd({
         title: title.trim(),
         description: description.trim() || undefined,
         status: "todo",
+        priority: parseInt(priority, 10) || 3,
         due_date: dueDate || null,
-        sprint: sprintId ? parseInt(sprintId, 10) : null,
       });
       setTitle("");
       setDescription("");
       setDueDate("");
-      setSprintId("");
+      setPriority("3");
     } catch (err) {
       setError(taskApiErrorMessage(err));
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function handleSprintChange(taskId, sprintValue) {
-    setUpdateError("");
-    try {
-      await onUpdateTask(taskId, {
-        sprint: sprintValue ? parseInt(sprintValue, 10) : null,
-      });
-    } catch (err) {
-      setUpdateError(taskApiErrorMessage(err));
     }
   }
 
@@ -912,7 +747,6 @@ function TaskListSection({
     setEditTitle(t.title);
     setEditDescription(t.description || "");
     setEditDueDate(t.due_date || "");
-    setEditSprintId(t.sprint != null ? String(t.sprint) : "");
     setEditError("");
   }
 
@@ -923,20 +757,12 @@ function TaskListSection({
   async function saveEditTask() {
     if (!editingTaskId || !editTitle.trim()) return;
     setEditError("");
-    const sprint = editSprintId ? sprints.find((s) => String(s.id) === editSprintId) : null;
-    if (sprint && editDueDate && editDueDate > sprint.end_date) {
-      setEditError(
-        `La date d'échéance ne peut pas être après la fin du sprint « ${sprint.title} » (${sprint.end_date}).`
-      );
-      return;
-    }
     setSavingEdit(true);
     try {
       await onUpdateTask(editingTaskId, {
         title: editTitle.trim(),
         description: editDescription.trim() || undefined,
         due_date: editDueDate || null,
-        sprint: editSprintId ? parseInt(editSprintId, 10) : null,
       });
       setEditingTaskId(null);
     } catch (err) {
@@ -974,26 +800,21 @@ function TaskListSection({
           className="w-full rounded-lg border border-sand-300 px-4 py-2 text-sm resize-none"
         />
         <div className="flex gap-3 items-center flex-wrap">
+          <select
+            value={priority}
+            onChange={(e) => setPriority(e.target.value)}
+            className="rounded-lg border border-sand-300 px-4 py-2 text-sm text-graphite-800"
+          >
+            <option value="1">Priorité haute</option>
+            <option value="2">Priorité moyenne</option>
+            <option value="3">Priorité basse</option>
+          </select>
           <input
             type="date"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
             className="rounded-lg border border-sand-300 px-4 py-2 text-sm"
           />
-          {sprints.length > 0 && (
-            <select
-              value={sprintId}
-              onChange={(e) => setSprintId(e.target.value)}
-              className="rounded-lg border border-sand-300 px-4 py-2 text-sm text-graphite-800"
-            >
-              <option value="">Aucun sprint</option>
-              {sprints.map((s) => (
-                <option key={s.id} value={String(s.id)}>
-                  {s.title}
-                </option>
-              ))}
-            </select>
-          )}
           <button
             type="submit"
             disabled={submitting || !title.trim()}
@@ -1008,12 +829,6 @@ function TaskListSection({
           </p>
         )}
       </form>
-
-      {updateError && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-          {updateError}
-        </div>
-      )}
 
       <div className="space-y-3">
         <h4 className="font-medium text-graphite-800 text-sm">Tâches</h4>
@@ -1048,20 +863,6 @@ function TaskListSection({
                       onChange={(e) => setEditDueDate(e.target.value)}
                       className="rounded-lg border border-sand-300 px-3 py-2 text-sm"
                     />
-                    {sprints.length > 0 && (
-                      <select
-                        value={editSprintId}
-                        onChange={(e) => setEditSprintId(e.target.value)}
-                        className="rounded-lg border border-sand-300 px-3 py-2 text-sm text-graphite-800"
-                      >
-                        <option value="">Aucun sprint</option>
-                        {sprints.map((s) => (
-                          <option key={s.id} value={String(s.id)}>
-                            {s.title}
-                          </option>
-                        ))}
-                      </select>
-                    )}
                     <button
                       type="button"
                       onClick={saveEditTask}
@@ -1091,24 +892,9 @@ function TaskListSection({
                     <p className="text-xs text-graphite-500 mt-0.5">
                       {TASK_STATUS_LABELS[t.status] ?? t.status}
                       {t.due_date && ` · ${t.due_date}`}
-                      {t.sprint_title && ` · ${t.sprint_title}`}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                    {sprints.length > 0 && onUpdateTask && (
-                      <select
-                        value={t.sprint != null ? String(t.sprint) : ""}
-                        onChange={(e) => handleSprintChange(t.id, e.target.value)}
-                        className="text-xs rounded border border-sand-300 px-2 py-1 text-graphite-700"
-                      >
-                        <option value="">Aucun sprint</option>
-                        {sprints.map((s) => (
-                          <option key={s.id} value={String(s.id)}>
-                            {s.title}
-                          </option>
-                        ))}
-                      </select>
-                    )}
                     <select
                       value={t.status}
                       onChange={(e) => onUpdateStatus(t.id, e.target.value)}

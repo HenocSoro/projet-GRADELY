@@ -49,26 +49,3 @@ class IsProjectMember(permissions.BasePermission):
         return (
             project.owner_id == request.user.id or project.supervisor_id == request.user.id
         )
-
-
-class IsSupervisorForReview(permissions.BasePermission):
-    """
-    Permission pour la revue : seul le superviseur du projet peut valider (approve/reject).
-    """
-
-    def has_permission(self, request, view):
-        if not request.user.is_authenticated:
-            return False
-        return True
-
-    def has_object_permission(self, request, view, obj):
-        # obj est la Submission
-        project = obj.deliverable.project
-        # Lecture : owner ou supervisor
-        if request.method in permissions.SAFE_METHODS:
-            return (
-                project.owner_id == request.user.id
-                or project.supervisor_id == request.user.id
-            )
-        # Écriture (POST review) : uniquement le superviseur
-        return project.supervisor_id == request.user.id
