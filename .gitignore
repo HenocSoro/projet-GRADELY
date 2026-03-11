@@ -16,5 +16,5 @@ env/
 # OS
 .DS_Store
 
-# Claude / IDE worktrees
+# IDE worktrees
 .claude/
